@@ -207,7 +207,7 @@ input[type=range] { width: 100%; accent-color: var(--ivory); }
 .alt button b { color: var(--tx); display: block; margin-bottom: 2px; }
 
 /* ───────── chat ───────── */
-.chatwrap { display: flex; flex-direction: column; height: calc(100dvh - 238px - var(--nav-h) - var(--safe-b)); min-height: 320px; }
+.chatwrap { display: flex; flex-direction: column; height: calc(100dvh - 150px - var(--nav-h) - var(--safe-t) - var(--safe-b)); min-height: 320px; }
 .msgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; scroll-behavior: smooth; }
 .msg { max-width: 88%; padding: 12px 15px; border-radius: 20px; font-size: 15.5px; white-space: pre-wrap; }
 .msg.me { align-self: flex-end; background: var(--ivory); color: var(--ink); border-bottom-right-radius: 6px; }
@@ -295,3 +295,6 @@ details.gl p { padding: 0 16px 16px; color: var(--tx2); font-size: 15px; }
 
 .chk { width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--line2); display: grid; place-items: center; flex: none; font-size: 13px; font-weight: 800; color: var(--bg); }
 .chk.on { background: var(--good); border-color: var(--good); }
+
+.chathead .seg { margin-bottom: 8px; }
+.chathead .seg button { height: 34px; }

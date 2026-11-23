@@ -1,4 +1,4 @@
-const V = 'cap-v3';
+const V = 'cap-v4';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'style.css', 'display.woff2', 'text.woff2',
   'app.js', 'model.js', 'engine.js', 'store.js', 'views.js', 'sheets.js', 'ui.js', 'charts.js', 'chat.js', 'csv.js', 'net.js', 'revpoints.js',
   'icon-192.png', 'icon-512.png', 'maskable-512.png'];

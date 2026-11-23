@@ -37,6 +37,12 @@ export function reply(s, raw, now = new Date()) {
     const eta = st.etaDays == null ? 'pas de date possible pour l\'instant' : `arrivée estimée dans ~${Math.round(st.etaDays / 30)} mois`;
     return { text: `Tu as ${s.rev.points.toLocaleString('fr-FR')} RevPoints sur ${s.rev.target.toLocaleString('fr-FR')} visés (${Math.round(st.pct * 100)} %), ${eta}. Avec la carte seule, il faudrait dépenser ${fmt0(st.spendNeeded)} : ne dépense jamais pour des points. Les bons leviers : offres activées avant un achat déjà prévu, défis gratuits, Points Pocket avec de l'argent déjà épargné. Détails dans l'onglet Points.` };
   }
+  // ── Investir un montant précis : réponse chiffrée sur CE qu'il demande ──
+  const asset = /s&p|sp ?500|s and p/.test(low) ? 'sp' : /bitcoin|btc/.test(low) ? 'btc' : /\betf|monde|msci/.test(low) ? 'etf' : /robo/.test(low) ? 'robo' : /\bpea\b/.test(low) ? 'pea' : null;
+  if (n && asset && /(invest|place|mettre|mets|envisage|acheter|investis)/.test(low)) return investAnswer(s, n, asset, now);
+  // ── Budget pour un événement (Noël, cadeaux, vacances…) ──
+  if (/(budget|combien (prévoir|dépenser|mettre|prendre)|prévoir)/.test(low) && /(no[eë]l|cadeau|anniv|f[eê]te|vacances|sorties?|week-?end|restos?|mariage)/.test(low)) return eventBudget(s, t, low, n, now);
+
   if (/puis[- ]?je|je peux|peut[- ]on|raisonnable|ai[- ]je (les moyens|le droit)|me permettre|m'offrir|je m'offre|j'ai envie|acheter/.test(low) && n) {
     const pocket = guessPocket(t);
     const v = E.verdict(s, { amount: n, pocket, label: t }, now);
@@ -75,7 +81,7 @@ export function reply(s, raw, now = new Date()) {
     return { text: main, card: { type: 'invest' } };
   }
   if (/(salut|bonjour|hello|coucou|hey)/.test(low)) return { text: `Salut ${s.settings.name} ! Dis-moi ce que tu as reçu, ce que tu veux dépenser, ou pose-moi une question sur ton budget.` };
-  return { text: 'Je ne traite que ton budget, la banque, l\'investissement et l\'économie. Je peux répartir un revenu, juger une dépense, suivre ton voyage ou t\'expliquer un placement. Essaie : « puis-je dépenser 30 € au resto ? » ou « explique-moi les ETF ».', fallback: true };
+  return { text: "Cette question demande de vraies phrases, et mes règles intégrées ne savent répondre qu'aux sujets prévus (répartir un revenu, juger une dépense, tes projets, ETF, S&P 500, Bitcoin, RevPoints). Active l'IA gratuite : elle répond à tout ce qui touche à l'argent, suit l'actualité et connaît tes chiffres.", card: { type: 'enable-ai' }, needsAI: true };
 }
 
 // Contexte compact envoyé à Gemini (si activé) : uniquement des chiffres agrégés.
@@ -103,3 +109,47 @@ ACTUALITÉ : pour tout ce qui est récent (cours, indices, taux, banques central
 STYLE PROFESSEUR : tutoie, sois direct et rassurant. Explique comme à un débutant : mots simples, chaque terme technique défini en une phrase, et une comparaison de la vie quotidienne (panier de courses, airbag, pilote automatique, etc.). Structure courte : 1) la réponse en une phrase, 2) l'explication avec une comparaison, 3) « Pour toi » avec les chiffres fournis dans les données JSON (jamais de chiffres personnels inventés). Termine parfois par une petite question ou un mini-exercice pour vérifier qu'il a compris. Maximum ~12 lignes, listes courtes si utile.
 
 CONSEILS : prends position et justifie (rendement vs risque, horizon 5 ans, matelas de sécurité, plafond Bitcoin). Rappelle en une courte phrase, seulement quand c'est important, qu'il s'agit d'un éclairage pédagogique et non d'un conseil en investissement réglementé, et que rien n'est garanti. Réponds uniquement en français.`;
+
+const fr = (n) => fmt0(n);
+const NAMES = { sp: 'ETF S&P 500', btc: 'Bitcoin', etf: 'ETF', robo: 'robo-advisor', pea: 'PEA' };
+function investAnswer(s, amount, asset, now) {
+  const em = E.emergency(s);
+  const pf = E.portfolio(s);
+  const goals = E.goalStatuses(s, now).filter((g) => g.remaining > 0);
+  const lines = [];
+  let verdict;
+  if (asset === 'btc') {
+    const after = Math.round((((pf.shares.find((x) => x.id === 'btc')?.value ?? 0) + amount) / (pf.total + amount)) * 100);
+    verdict = after > s.settings.btcCap ? `Non, pas pour l'instant : ${fr(amount)} de plus feraient monter le Bitcoin à ${after} % de ton portefeuille (ton plafond : ${s.settings.btcCap} %).` : `Oui, c'est dans ton plafond : le Bitcoin passerait à ${after} % (plafond ${s.settings.btcCap} %).`;
+    lines.push('Le Bitcoin peut perdre la moitié de sa valeur en quelques mois : à ne mettre que ce que tu accepterais de voir fondre.');
+  } else {
+    const nameAfter = asset === 'sp' ? 'un ETF S&P 500 (500 grandes entreprises américaines en une seule ligne)' : 'ce placement';
+    const remaining = em.have - amount;
+    if (!em.ok) verdict = `Pas tout de suite : ton matelas de sécurité n'est pas complet (${fr(em.have)} sur ${fr(em.target)}). Complète-le d'abord, puis investis dans ${nameAfter}.`;
+    else if (remaining < em.target) verdict = `Oui, mais pas avec l'épargne de sécurité : si ces ${fr(amount)} viennent de ton compte épargne, il passerait à ${fr(remaining)} (objectif ${fr(em.target)}). Prends plutôt l'argent de tes prochains revenus.`;
+    else verdict = `Oui, c'est une bonne idée : ${nameAfter} convient à ton horizon de ${s.settings.horizon} ans, et ton matelas reste intact (${fr(remaining)} d'épargne après).`;
+    if (asset === 'sp') {
+      lines.push('Le S&P 500 monte en moyenne de 7 à 8 % par an sur le très long terme, mais il peut perdre 20 à 35 % en une mauvaise année et mettre des années à se refaire. Il ne se garde que si tu peux ne pas y toucher au moins 5 ans.');
+      lines.push(`Astuce : au lieu de tout mettre d'un coup, fais ${amount >= 300 ? '3 versements de ' + fr(amount / 3) : '2 versements de ' + fr(amount / 2)} à quelques semaines d'écart. En image : tu entres dans la mer par paliers plutôt que d'un seul saut.`);
+    }
+  }
+  const soon = goals.find((g) => (new Date(g.date) - now) / 864e5 < 730);
+  if (soon && asset !== 'btc') lines.push(`Attention : l'argent de « ${soon.name} » (échéance ${new Date(soon.date).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}) ne doit jamais aller en bourse, il doit rester disponible.`);
+  return { text: `${verdict}\n\n${lines.join('\n\n')}\n\nCe n'est pas un conseil réglementé, rien n'est garanti.`.trim(), card: { type: 'invest' } };
+}
+function eventBudget(s, t, low, n, now) {
+  const inc = E.monthlyIncome(s, now);
+  const fun = s.pockets.filter((p) => ['plaisirs', 'perso'].includes(p.id)).reduce((a, p) => a + p.balance, 0);
+  const xmas = /no[eë]l|cadeau/.test(low);
+  const end = new Date(now.getFullYear(), 11, 25);
+  const weeks = Math.max(0, Math.round((end - now) / 6048e5));
+  const base = inc ?? 0;
+  const pct = xmas ? 0.1 : 0.07;
+  const sugg = base ? Math.round((base * pct) / 10) * 10 : Math.min(Math.floor(fun / 10) * 10, 150);
+  const parts = [];
+  parts.push(base ? `Mon conseil : environ ${fr(sugg)} (≈ ${Math.round(pct * 100)} % d'un revenu mensuel moyen de ${fr(base)}).` : `Je n'ai pas encore assez de revenus enregistrés pour calculer un pourcentage. Pars sur ${fr(sugg)} maximum, tirés de tes poches Plaisirs et Personnel.`);
+  parts.push(`Tu as ${fr(fun)} disponibles dans Plaisirs + Personnel. ${fun >= sugg - 0.5 ? 'Ça couvre ce budget sans toucher à ton épargne.' : `Il te manque ~${fr(sugg - fun)} : mets-les de côté sur tes prochains revenus.`}`);
+  if (xmas) parts.push(`Noël est dans ${weeks} semaine${weeks > 1 ? 's' : ''}. Répartis la somme : liste tes personnes, fixe un montant par personne avant de regarder les prix, et garde ~10 % pour l'imprévu. Un cadeau choisi coûte souvent moins qu'un cadeau acheté sous la pression.`);
+  parts.push('Veux-tu que je te dise si un achat précis passe ? Écris par exemple « puis-je dépenser 40 € pour un cadeau ? ».');
+  return { text: parts.join('\n\n') };
+}

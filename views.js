@@ -50,6 +50,7 @@ function renderCard(c) {
       <button class="btn primary sm" style="margin-top:12px" data-act="open-income" data-amount="${c.income}">Voir et appliquer</button>`;
   }
   if (c.type === 'balances') return `<div class="minilist">${s.pockets.map((p) => `<div><span class="nm">${dotc(p.color)}${esc(p.name)}</span><b class="num">${fmt(p.balance)}</b></div>`).join('')}</div>`;
+  if (c.type === 'enable-ai') return `<button class="btn primary sm" data-act="llm">Activer l'IA gratuite</button>`;
   if (c.type === 'goals') return E.goalStatuses(s).map((g) => goalCard(g)).join('');
   if (c.type === 'month') return `<div class="minilist"><div><span class="nm">Reçu</span><b class="num">${fmt(c.m.income)}</b></div><div><span class="nm">Dépensé</span><b class="num">${fmt(c.m.spent)}</b></div><div><span class="nm">Mis de côté</span><b class="num">${fmt(c.m.put)}</b></div></div>`;
   if (c.type === 'invest') {
@@ -204,9 +205,10 @@ function advisorView() {
   const seg = `<div class="seg">${[['chat', 'Discussion'], ['can', 'Puis-je ?']].map(([k, l]) => `<button class="${ui.advisor === k ? 'on' : ''}" data-act="aseg" data-k="${k}">${l}</button>`).join('')}</div>`;
   if (ui.advisor === 'chat') {
     const msgs = s.chat.slice(-40);
-    return `<h1 class="h1" style="margin-bottom:18px">Conseiller</h1>${seg}
+    const first = !s.chat.some((m) => m.role === 'user');
+    return `<div class="chathead">${seg}</div>
     <div class="chatwrap"><div class="msgs" id="msgs">${chatIntro(s)}${msgs.map(msgHtml).join('')}</div>
-      <div class="chips" style="margin-bottom:6px">${suggestions().map((t) => `<button class="chip" data-act="suggest" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      ${first ? `<div class="chips" style="margin-bottom:6px">${suggestions().map((t) => `<button class="chip" data-act="suggest" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}
       <form class="composer" id="composer" autocomplete="off"><input class="input" id="msg" placeholder="Écris ton message…" enterkeyhint="send" aria-label="Message"><button class="send" aria-label="Envoyer">${ic('send')}</button></form></div>`;
   }
   const spendP = s.pockets.filter((p) => p.kind === 'spend');
@@ -223,6 +225,7 @@ export function updateChat() {
   if (!el) return;
   const s = S();
   el.innerHTML = chatIntro(s) + s.chat.slice(-40).map(msgHtml).join('') + (ui.typing ? '<div class="msg ai typing">Je réfléchis…</div>' : '');
+  document.querySelector('.chatwrap > .chips')?.remove();
   el.scrollTop = el.scrollHeight;
 }
 
