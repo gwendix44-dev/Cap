@@ -47,6 +47,11 @@ function feasibility(st) {
   const r = R();
   if (st.remaining === 0) return { tone: 'good', t: 'Objectif atteint', p: `Tu as ${pts(r.points)} points. Tu peux relever la cible dans « Modifier ».` };
   const cardOnly = `Avec la carte seule, ${pts(st.remaining)} points = ${fmt0(st.spendNeeded)} de dépenses : impossible sans dépenser inutilement. Les seuls leviers réalistes sont les offres, défis, Points Pocket et réservations déjà prévues.`;
+  if (st.observed == null && st.hist != null) {
+    const m = Math.round(st.hist * 30), eta = st.etaDays;
+    const when = eta == null ? '' : ` À ce rythme tu atteins ${pts(r.target)} points vers ${frDate(new Date(Date.now() + eta * 864e5), { month: 'long', year: 'numeric' })}.`;
+    return { tone: 'good', t: `Ton rythme réel : ~${pts(m)} points/mois`, p: `Depuis l'ouverture de ton compte tu as gagné ${pts(r.hist.earned)} points. Ta carte seule en rapporterait environ ${pts(st.cardMonth)}/mois : l'essentiel vient donc d'autres sources (Points Pocket, défis, offres, petite monnaie).${when} Mets à jour ton solde chaque semaine pour que je mesure le rythme du moment.` };
+  }
   if (st.observed == null) return { tone: 'warn', t: 'Mesurons ton vrai rythme', p: `${cardOnly} Mets à jour ton solde dans Cap chaque semaine : après quelques jours je calcule ton rythme réel et la date d’arrivée.` };
   const eta = st.etaDays;
   const when = eta == null ? 'jamais à ce rythme' : eta > 3650 ? 'dans plus de 10 ans' : `vers ${frDate(new Date(Date.now() + eta * 864e5), { month: 'long', year: 'numeric' })}`;
@@ -74,7 +79,7 @@ export function revView() {
   <div class="advice ${f.tone === 'good' ? 'good' : 'warn'}" style="margin-top:14px"><h3>${esc(f.t)}</h3><p>${esc(f.p)}</p></div>
   <div class="group" style="margin-top:14px">
     <div class="row"><div class="grow"><div class="ttl">Valeur estimée</div><div class="sub">≈ 0,7 centime par point, indicatif et non garanti</div></div><div class="amt">${fmt0(st.valueNow)}<small>→ ${fmt0(st.valueGoal)}</small></div></div>
-    <div class="row"><div class="grow"><div class="ttl">Rythme ${st.observed != null ? 'mesuré' : 'estimé par ta carte'}</div><div class="sub">${st.observed != null ? 'd’après tes mises à jour' : `${fmt0(st.spendMonthly)}/mois ÷ ${st.rate} € par point`}</div></div><div class="amt">${pts((st.observed != null ? st.observed * 30 : st.modeled * 30))}<small>pts/mois</small></div></div>
+    <div class="row"><div class="grow"><div class="ttl">Rythme ${st.observed != null ? 'mesuré' : st.hist != null ? 'moyen depuis l’ouverture' : 'estimé par ta carte'}</div><div class="sub">${st.observed != null ? 'd’après tes mises à jour' : st.hist != null ? 'points gagnés depuis mars 2025' : `${fmt0(st.spendMonthly)}/mois ÷ ${st.rate} € par point`}</div></div><div class="amt">${pts(st.pace * 30)}<small>pts/mois</small></div></div>
     ${hist.length > 1 ? `<div class="row"><div class="grow"><div class="ttl">Évolution</div><div class="sub">${hist.length} relevés</div></div><div>${spark(hist.map((x) => x.pts), { w: 90, h: 30 })}</div></div>` : ''}
     ${r.deadline ? `<div class="row"><div class="grow"><div class="ttl">Pour le ${esc(frDate(r.deadline + 'T12:00:00', { day: 'numeric', month: 'long', year: 'numeric' }))}</div><div class="sub">rythme nécessaire</div></div><div class="amt">${pts((st.needPerDay ?? 0) * 30)}<small>pts/mois</small></div></div>` : ''}
   </div>
@@ -166,7 +171,7 @@ actions['rev-live'] = async () => {
     const st = E.revStatus(S());
     const res = await geminiAsk({
       key: llm.key, model: llm.model, system: REV_SYSTEM,
-      prompt: `Nous sommes le ${today()}. Quelles sont les meilleures façons actuelles, en France, de gagner des RevPoints sans dépense supplémentaire ? Abonnement : ${M.REV_PLANS[R().plan]} (1 point pour ${st.rate} € dépensés). J'ai ${R().points} points et je vise ${R().target}. Je paie déjà ~130 €/mois d'abonnements, ~50 €/mois de nourriture et je prévois un voyage en mars. Donne 5 puces maximum : offre ou défi en cours (avec date de fin), points estimés, et si c'est gratuit pour quelqu'un qui aurait fait cet achat de toute façon. Termine par une phrase honnête sur le réalisme de l'objectif.`,
+      prompt: `Nous sommes le ${today()}. Quelles sont les meilleures façons actuelles, en France, de gagner des RevPoints sans dépense supplémentaire ? Abonnement : ${M.REV_PLANS[R().plan]} (1 point pour ${st.rate} € dépensés). J'ai ${R().points} points (dont ~${Math.round((st.hist ?? 0) * 30)} par mois en moyenne depuis l'ouverture, bien plus que ma carte seule) et je vise ${R().target}. Je paie déjà ~130 €/mois d'abonnements, ~50 €/mois de nourriture et je prévois un voyage en mars. Donne 5 puces maximum : offre ou défi en cours (avec date de fin), points estimés, et si c'est gratuit pour quelqu'un qui aurait fait cet achat de toute façon. Termine par une phrase honnête sur le réalisme de l'objectif.`,
     });
     localStorage.setItem('cap.revlive', JSON.stringify({ text: res.text, sources: res.sources, ts: Date.now() }));
     bus.refresh();

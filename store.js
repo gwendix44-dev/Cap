@@ -16,6 +16,12 @@ export function load() {
   for (const k of ['pockets', 'goals', 'subs', 'tx', 'snapshots', 'chat']) store.state[k] ??= d[k];
   store.state.rules ??= {};
   store.state.rev = { ...defaultRev(), ...(store.state.rev ?? {}) };
+  const rv = store.state.rev;
+  if (!rv.hist) { // données réelles du résumé Revolut du 23/11/2026 (Premium, compte ouvert en mars 2025)
+    rv.hist = { earned: 59005, since: '2025-03-01' };
+    if (rv.plan === 'standard') rv.plan = 'premium';
+    if (rv.points === 60000 && rv.log.length <= 1) { rv.points = 61127; rv.log = [{ d: '2026-11-23', pts: 61127 }]; }
+  }
   store.state.rev.pocket = { ...defaultRev().pocket, ...(store.state.rev.pocket ?? {}) };
   return store.state;
 }

@@ -376,11 +376,12 @@ export function revStatus(s, now = new Date()) {
     const d = daysBetween(win[0].d, win.at(-1).d);
     if (d >= 3) observed = Math.max(0, (win.at(-1).pts - win[0].pts) / d);
   }
-  const pace = observed ?? modeled;
+  const hist = r.hist ? r.hist.earned / Math.max(30, daysBetween(r.hist.since + 'T12:00:00', now)) : null;
+  const pace = observed ?? hist ?? modeled;
   const etaDays = remaining === 0 ? 0 : pace > 0 ? Math.ceil(remaining / pace) : null;
   const need = r.deadline ? (remaining / Math.max(1, daysBetween(now, r.deadline + 'T12:00:00'))) : null;
   return {
-    rate, remaining, pct: clamp(r.points / r.target, 0, 1), spendMonthly, cardMonth, pocketMonth, modeled, observed, pace, etaDays,
+    hist, rate, remaining, pct: clamp(r.points / r.target, 0, 1), spendMonthly, cardMonth, pocketMonth, modeled, observed, pace, etaDays,
     spendNeeded: round2(remaining * rate), needPerDay: need, valueNow: round2(r.points * REV_VALUE), valueGoal: round2(r.target * REV_VALUE),
   };
 }
