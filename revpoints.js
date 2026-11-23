@@ -25,6 +25,32 @@ export const LEVERS = [
   { id: 'travel', t: 'Séjours et Expériences', d: 'Les réservations via l’app peuvent donner beaucoup plus de points (boosters annoncés jusqu’à plusieurs dizaines de points par euro selon l’offre). Compare le prix avec ton habitude : un booster ne justifie pas un tarif plus cher.', w: 'Pour ton voyage de mars uniquement, et seulement si le prix final est égal ou meilleur.' },
   { id: 'referral', t: 'Parrainage', d: 'Si un proche veut vraiment ouvrir un compte Revolut, le parrainage peut donner un bonus (variable, vérifie l’offre en cours).', w: 'Vrais proches uniquement. Les faux comptes ou échanges de parrainage peuvent annuler tes points.' },
 ];
+// ───────── Offres : fichier offers.json (sources Revolut) + offres perso saisies depuis l'app ─────────
+let OFFERS = { items: [], links: [], checked: null };
+fetch('offers.json', { cache: 'no-cache' }).then((r) => r.json()).then((j) => { OFFERS = j; bus.refresh?.(); }).catch(() => {});
+const allOffers = () => [...(OFFERS.items ?? []), ...(R().offers ?? []).map((o) => ({ ...o, mine: true }))];
+const isActive = (o, d = today()) => (!o.from || o.from <= d) && (!o.until || o.until >= d);
+const offerState = (o, d = today()) => (o.from && o.from > d ? 'soon' : o.until && o.until < d ? 'over' : 'on');
+const norm = (x) => String(x ?? '').toLowerCase().trim();
+export function offerFor(brand) {
+  const b = norm(brand);
+  if (b.length < 2) return null;
+  const hits = allOffers().filter((o) => [o.brand, ...(o.alias ?? [])].some((n) => { n = norm(n); return b.includes(n) || n.includes(b); }));
+  return hits.find(isActive) ?? hits[0] ?? null;
+}
+// Estimation de points : taux de ta carte, ou multiplicateur de l'offre si la marque est partenaire et l'offre en cours.
+export function estimatePoints(spend, brand, withPay) {
+  const rate = M.REV_RATES[R().plan] ?? 10;
+  const base = spend / rate;
+  const o = offerFor(brand);
+  if (!o) return { lo: base, hi: base, base, why: `Marque non partenaire connue : taux de ta carte ${M.REV_PLANS[R().plan]} (1 point pour ${rate} €).` };
+  const st = offerState(o);
+  if (st !== 'on') return { lo: base, hi: base, base, o, why: `${o.brand} : offre ${st === 'soon' ? 'pas encore commencée' : 'terminée'}. Taux de ta carte ${M.REV_PLANS[R().plan]}.` };
+  if (o.pay && !withPay) return { lo: base, hi: base, base, o, why: `${o.brand} : le boost exige ${o.pay}. Avec ta carte seule : taux ${M.REV_PLANS[R().plan]}.` };
+  if (o.ppe) { const v = spend * o.ppe; return { lo: o.upTo ? base : v, hi: v, base, o, why: `${o.brand} : ${o.upTo ? 'jusqu’à ' : ''}${o.ppe} points par euro (le taux exact dépend de la marque).` }; }
+  return { lo: base * o.x, hi: base * (o.max ?? o.x), base, o, why: `${o.brand} : boost ×${o.x}${o.max ? ` jusqu’à ×${o.max}` : ''} sur le taux de ta carte.` };
+}
+
 const WEEKLY = [
   ['offers', 'J’ai regardé les offres et boosters avant mes achats de la semaine'],
   ['card', 'Tout ce que j’ai payé était réglé avec la carte ou Revolut Pay'],
@@ -85,8 +111,18 @@ export function revView() {
   </div>
   <section class="section"><div class="sec-h"><h2 class="h2">Cette semaine</h2></div>
     <div class="group">${WEEKLY.map(([k, l]) => `<button class="row" data-act="rev-check" data-k="${k}"><span class="chk ${week[k] ? 'on' : ''}" aria-hidden="true">${week[k] ? '✓' : ''}</span><div class="grow"><div class="ttl" style="font-weight:500">${esc(l)}</div></div></button>`).join('')}</div></section>
+  <section class="section"><div class="sec-h"><h2 class="h2">Offres du moment</h2></div>
+    <div class="group">${allOffers().map((o, i) => {
+      const s2 = offerState(o); const [lab, tone] = s2 === 'on' ? ['En cours', 'good'] : s2 === 'soon' ? ['À venir', ''] : ['Terminée', 'warn'];
+      const mult = o.ppe ? `${o.upTo ? 'jusqu’à ' : ''}${o.ppe} pts/€` : `×${o.x}${o.max ? ` à ×${o.max}` : ''}`;
+      const when = o.until ? `jusqu’au ${frDate(o.until + 'T12:00:00', { day: 'numeric', month: 'long', year: 'numeric' })}` : 'sans date de fin connue';
+      return `<div class="row" style="align-items:flex-start"><div class="grow"><div class="ttl">${esc(o.brand)} · ${mult}</div><div class="sub">${esc(o.pay ? `avec ${o.pay} · ` : '')}${when}<br>${esc(o.note ?? '')}</div>${o.src ? `<div class="srcs"><a href="${esc(o.src)}" target="_blank" rel="noopener noreferrer">Source Revolut</a></div>` : '<div class="muted xs" style="margin-top:6px">Ajoutée par toi</div>'}</div><span class="pill ${tone}">${lab}</span>${o.mine ? `<button class="chip" data-act="rev-offer-del" data-i="${i - (OFFERS.items ?? []).length}" aria-label="Supprimer">✕</button>` : ''}</div>`;
+    }).join('') || '<div class="empty" style="padding:18px">Aucune offre chargée.</div>'}</div>
+    <p class="muted xs" style="margin-top:10px">Offres publiées par Revolut, vérifiées le ${OFFERS.checked ? esc(frDate(OFFERS.checked + 'T12:00:00', { day: 'numeric', month: 'long', year: 'numeric' })) : '…'}. Revolut n’affiche pas la liste des marques hors de l’app : ce que tu vois dans RevPoints › Offres et sur l’écran de paiement fait foi.</p>
+    <button class="btn ghost sm" data-act="rev-offer-add" style="margin-top:12px">Ajouter une offre vue dans mon app</button>
+    ${(OFFERS.links ?? []).length ? `<div class="srcs" style="margin-top:12px">${OFFERS.links.map(([t, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>`).join('')}</div>` : ''}</section>
   <section class="section"><div class="sec-h"><h2 class="h2">Astuces du moment</h2></div>
-    <div class="group" style="padding:18px"><p class="dim small" style="margin:0 0 12px">Promotions, boosters et défis en cours en France, cherchés sur le web. Vérifie toujours dans l’app avant d’agir : les offres changent vite.</p>
+    <div class="group" style="padding:18px"><p class="dim small" style="margin:0 0 12px">Promotions, boosters et défis en cours, cherchés uniquement sur les sites de Revolut. Vérifie toujours dans l’app avant d’agir : les offres changent vite.</p>
       <div id="revlive" style="white-space:pre-wrap;color:var(--tx2);font-size:15px">${live ? `${md(live.text)}${srcHtml(live.sources)}\n<span class="muted xs">Recherché le ${new Date(live.ts).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>` : ''}</div>
       <button class="btn ghost sm" data-act="rev-live" style="margin-top:12px">${live ? 'Actualiser' : 'Chercher les astuces du moment'}</button></div></section>
   <section class="section"><div class="sec-h"><h2 class="h2">Les leviers</h2></div>
@@ -142,26 +178,57 @@ actions['rev-edit'] = () => {
 };
 
 actions['rev-worth'] = () => {
-  const st = { planned: true };
-  openSheet(`<h2 class="h2">Ça vaut le coup ?</h2><p class="lead">Une offre te promet des points pour un achat. Je compare à ce que ça te coûte vraiment.</p>
+  const st = { planned: true, pay: false };
+  const names = allOffers().flatMap((o) => [o.brand]);
+  openSheet(`<h2 class="h2">Ça vaut le coup ?</h2><p class="lead">Entre l’achat et la marque : je calcule tes points (taux Revolut de la marque si elle est partenaire, sinon ta carte ${esc(M.REV_PLANS[R().plan])}).</p>
+    <label class="field"><span>Marque ou service</span><input class="input" id="rw-b" list="rw-brands" placeholder="Uber, Séjours, Shops…" autocomplete="off"></label>
+    <datalist id="rw-brands">${names.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
     <label class="field"><span>Prix de l’achat (€)</span><input class="input" id="rw-s" inputmode="decimal" placeholder="0"></label>
-    <label class="field"><span>Points promis</span><input class="input" id="rw-p" inputmode="numeric" placeholder="0"></label>
+    <div class="seg" id="rw-pay"><button type="button" class="on" data-act="rw-pa" data-v="0">Payé par carte</button><button type="button" data-act="rw-pa" data-v="1">Revolut Pay</button></div>
+    <div id="rw-calc" class="muted small" style="margin:-6px 0 12px;min-height:20px"></div>
+    <label class="field"><span>Points affichés par Revolut (facultatif, remplace mon calcul)</span><input class="input" id="rw-p" inputmode="numeric" placeholder="auto"></label>
     <div class="seg" id="rw-seg"><button type="button" class="on" data-act="rw-pl" data-v="1">Déjà prévu</button><button type="button" data-act="rw-pl" data-v="0">Pas prévu</button></div>
     <div id="rw-out" style="min-height:70px"></div>`, (sh) => {
     const run = () => {
-      const spend = num($('#rw-s', sh).value), points = num($('#rw-p', sh).value);
-      const out = $('#rw-out', sh);
-      if (!(spend >= 0) || !(points > 0)) { out.innerHTML = ''; return; }
-      const v = E.revWorth({ spend, points, planned: st.planned });
+      const spend = num($('#rw-s', sh).value), brand = $('#rw-b', sh).value;
+      const out = $('#rw-out', sh), calc = $('#rw-calc', sh);
+      if (!(spend >= 0) || !$('#rw-s', sh).value) { out.innerHTML = ''; calc.textContent = ''; return; }
+      const e = estimatePoints(spend, brand, st.pay);
+      const typed = num($('#rw-p', sh).value);
+      const pts1 = typed > 0 ? typed : e.hi;
+      const range = typed > 0 ? `${pts(typed)} points (saisis)` : e.lo === e.hi ? `≈ ${pts(e.hi)} points` : `entre ${pts(e.lo)} et ${pts(e.hi)} points`;
+      calc.innerHTML = `<b style="color:var(--tx)">${range}</b><br>${esc(e.why)}${typed > 0 ? '' : ' Le nombre exact s’affiche sur l’écran de paiement : fie-toi à lui.'}`;
+      if (!(pts1 > 0)) { out.innerHTML = ''; return; }
+      const v = E.revWorth({ spend, points: typed > 0 ? typed : e.lo || e.hi, planned: st.planned });
       out.innerHTML = `<div class="advice ${v.ok ? 'good' : 'bad'}"><h3>${v.ok ? 'Oui, profites-en' : 'Non, laisse tomber'}</h3><p>${esc(v.text)}</p></div>`;
     };
     sh.addEventListener('input', run);
     actions['rw-pl'] = (el) => { st.planned = el.dataset.v === '1'; sh.querySelectorAll('#rw-seg button').forEach((b) => b.classList.toggle('on', b === el)); run(); };
+    actions['rw-pa'] = (el) => { st.pay = el.dataset.v === '1'; sh.querySelectorAll('#rw-pay button').forEach((b) => b.classList.toggle('on', b === el)); run(); };
   });
 };
 
+actions['rev-offer-add'] = () => {
+  openSheet(`<h2 class="h2">Une offre vue dans mon app</h2><p class="lead">Recopie ce que Revolut t’affiche (RevPoints › Offres, Shops ou écran Revolut Pay).</p>
+    <label class="field"><span>Marque</span><input class="input" id="ro-b" placeholder="Nom de la marque"></label>
+    <label class="field"><span>Multiplicateur (×) ou points par euro</span><input class="input" id="ro-v" inputmode="decimal" placeholder="Ex. 5"></label>
+    <div class="seg" id="ro-m"><button type="button" class="on" data-act="ro-mode" data-v="x">× ton taux</button><button type="button" data-act="ro-mode" data-v="ppe">points par €</button></div>
+    <label class="field"><span>Valable jusqu’au (facultatif)</span><input class="input" id="ro-d" type="date"></label>
+    <button class="btn primary block" id="ro-ok">Enregistrer</button>`, (sh) => {
+    let mode = 'x';
+    actions['ro-mode'] = (el) => { mode = el.dataset.v; sh.querySelectorAll('#ro-m button').forEach((b) => b.classList.toggle('on', b === el)); };
+    $('#ro-ok', sh).onclick = () => {
+      const b = $('#ro-b', sh).value.trim(), val = num($('#ro-v', sh).value);
+      if (!b || !(val > 0)) return toast('Marque et valeur obligatoires');
+      (R().offers ??= []).push({ brand: b, [mode]: val, until: $('#ro-d', sh).value || null, note: 'Offre vue dans ton app.' });
+      save(); closeSheet(); bus.refresh();
+    };
+  });
+};
+actions['rev-offer-del'] = (el) => { const i = +el.dataset.i; if (i >= 0) { R().offers.splice(i, 1); save(); bus.refresh(); } };
+
 // ───────────────────────── astuces en direct ─────────────────────────
-export const REV_SYSTEM = 'Tu es un conseiller RevPoints honnête pour un jeune Français de 22 ans qui veut gagner des points SANS dépenses supplémentaires ni achats inutiles. Français, tutoiement, mots simples. Utilise la recherche web pour trouver les promotions, boosters, défis, offres partenaires et changements de règles RevPoints actuels en France, avec leurs dates de fin. Indique toujours la date de l\'information. Ne recommande jamais d\'acheter quelque chose pour obtenir des points, ni de changer d\'abonnement payant, ni de tactiques abusives (faux parrainages…). Si tu n\'es pas sûr d\'une offre, dis-le. N\'invente aucun chiffre.';
+export const REV_SYSTEM = 'Source UNIQUE autorisée : les sites de Revolut (revolut.com, help.revolut.com, cdn.revolut.com, developer.revolut.com). Ignore tous les blogs, forums et comparateurs. Si Revolut ne publie pas l\'information, écris « non publié par Revolut » au lieu de deviner. Tu es un conseiller RevPoints honnête pour un jeune Français de 22 ans qui veut gagner des points SANS dépenses supplémentaires ni achats inutiles. Français, tutoiement, mots simples. Utilise la recherche web pour trouver les promotions, boosters, défis, offres partenaires et changements de règles RevPoints actuels en France, avec leurs dates de fin. Indique toujours la date de l\'information. Ne recommande jamais d\'acheter quelque chose pour obtenir des points, ni de changer d\'abonnement payant, ni de tactiques abusives (faux parrainages…). Si tu n\'es pas sûr d\'une offre, dis-le. N\'invente aucun chiffre.';
 actions['rev-live'] = async () => {
   const llm = S().settings.llm;
   const el = $('#revlive');
@@ -173,7 +240,9 @@ actions['rev-live'] = async () => {
       key: llm.key, model: llm.model, system: REV_SYSTEM,
       prompt: `Nous sommes le ${today()}. Quelles sont les meilleures façons actuelles, en France, de gagner des RevPoints sans dépense supplémentaire ? Abonnement : ${M.REV_PLANS[R().plan]} (1 point pour ${st.rate} € dépensés). J'ai ${R().points} points (dont ~${Math.round((st.hist ?? 0) * 30)} par mois en moyenne depuis l'ouverture, bien plus que ma carte seule) et je vise ${R().target}. Je paie déjà ~130 €/mois d'abonnements, ~50 €/mois de nourriture et je prévois un voyage en mars. Donne 5 puces maximum : offre ou défi en cours (avec date de fin), points estimés, et si c'est gratuit pour quelqu'un qui aurait fait cet achat de toute façon. Termine par une phrase honnête sur le réalisme de l'objectif.`,
     });
-    localStorage.setItem('cap.revlive', JSON.stringify({ text: res.text, sources: res.sources, ts: Date.now() }));
+    const host = (u) => { try { return new URL(u).hostname; } catch { return ''; } };
+    const src = (res.sources ?? []).filter((x) => /(^|\.)revolut\.com$/.test(host(x.uri)) || /(^|\.)revolut\.com$/.test(norm(x.title)));
+    localStorage.setItem('cap.revlive', JSON.stringify({ text: src.length ? res.text : `${res.text}\n\nAttention : aucune source Revolut n'a été trouvée pour cette réponse, ne la considère pas comme vérifiée.`, sources: src, ts: Date.now() }));
     bus.refresh();
   } catch (e) { el.textContent = `Impossible de chercher : ${e.message}`; }
 };

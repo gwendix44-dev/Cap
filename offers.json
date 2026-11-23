@@ -1,0 +1,43 @@
+{
+  "checked": "2026-11-23",
+  "note": "Offres publiées par Revolut. Les boosters par marque affichés dans ton app (Offres, Shops, écran de paiement Revolut Pay) font foi : ils peuvent différer.",
+  "items": [
+    {
+      "brand": "Uber / Uber Eats",
+      "alias": ["uber", "uber eats", "ubereats"],
+      "pay": "Revolut Pay",
+      "x": 5, "max": 15,
+      "from": "2026-11-11", "until": "2027-01-06",
+      "note": "Boost de 5x en plus, jusqu'à 15x avec le booster en cours dans les marchés éligibles. L'article ne précise pas l'année de fin : dates à confirmer dans l'app.",
+      "src": "https://www.revolut.com/news/uber_and_revolut_pay_partnership_expansion_delivers_rewarding_payments/"
+    },
+    {
+      "brand": "Séjours (hôtels)",
+      "alias": ["séjour", "sejour", "stays", "hôtel", "hotel"],
+      "ppe": 10, "upTo": true,
+      "note": "Jusqu'à 10 points par euro sur une sélection de Séjours réservés dans l'app.",
+      "src": "https://www.revolut.com/fr-FR/rev-points/"
+    },
+    {
+      "brand": "Expériences",
+      "alias": ["expérience", "experience", "activité", "excursion"],
+      "ppe": 5, "upTo": true,
+      "note": "Jusqu'à 5 points par euro sur la réservation d'Expériences dans l'app.",
+      "src": "https://www.revolut.com/fr-FR/rev-points/"
+    },
+    {
+      "brand": "Shops (marques partenaires)",
+      "alias": ["shops", "magasins", "revolut shops"],
+      "ppe": 20, "upTo": true,
+      "note": "Jusqu'à 20 points par euro sur Shops (page Revolut Luxembourg). Le taux exact dépend de la marque : regarde-le dans l'app avant d'acheter.",
+      "src": "https://www.revolut.com/fr-LU/rev-points/"
+    }
+  ],
+  "links": [
+    ["RevPoints : comment ça marche (Revolut France)", "https://www.revolut.com/fr-FR/rev-points/"],
+    ["Taux de gain par abonnement (aide Revolut)", "https://help.revolut.com/fr-FR/help/revpoints/what-is-revpoints/question-how-to-earn-revpoints/"],
+    ["Promotion Revolut Pay x Boost de RevPoints (conditions)", "https://www.revolut.com/fr-FR/legal/RevPoints-Booster-Campaign/"],
+    ["Toutes les promotions en cours (conditions)", "https://www.revolut.com/fr-FR/legal/promotions-terms/"],
+    ["Actualités Revolut", "https://www.revolut.com/news/"]
+  ]
+}

@@ -1,6 +1,6 @@
-const V = 'cap-v5';
+const V = 'cap-v6';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'style.css', 'display.woff2', 'text.woff2',
-  'app.js', 'model.js', 'engine.js', 'store.js', 'views.js', 'sheets.js', 'ui.js', 'charts.js', 'chat.js', 'csv.js', 'net.js', 'revpoints.js',
+  'app.js', 'model.js', 'engine.js', 'store.js', 'views.js', 'sheets.js', 'ui.js', 'charts.js', 'chat.js', 'csv.js', 'net.js', 'revpoints.js', 'offers.json',
   'icon-192.png', 'icon-512.png', 'maskable-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((x) => x !== V).map((x) => caches.delete(x)))).then(() => self.clients.claim())); });

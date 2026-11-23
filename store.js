@@ -22,6 +22,7 @@ export function load() {
     if (rv.plan === 'standard') rv.plan = 'premium';
     if (rv.points === 60000 && rv.log.length <= 1) { rv.points = 61127; rv.log = [{ d: '2026-11-23', pts: 61127 }]; }
   }
+  rv.offers ??= [];
   store.state.rev.pocket = { ...defaultRev().pocket, ...(store.state.rev.pocket ?? {}) };
   return store.state;
 }
